@@ -14,6 +14,7 @@ Console.WriteLine($"Performing operations on {accelerator}");
 var kernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<long>, int, LambdaClosure>(Kernel);
 using var buffer = accelerator.Allocate1D<long>(DataSize);
 var lambaClosure = new LambdaClosure(20);
+lambaClosure.executed = 123;
 kernel((int)buffer.Length, buffer.View, 1, lambaClosure);
 
 var data = buffer.GetAsArray1D();
@@ -65,14 +66,17 @@ namespace KernelParameters
     /// Constructs a new lambda closure.
     /// </remarks>
     /// <param name="offset">The offset to use.</param>
-    public readonly struct LambdaClosure(long offset) : IKernelFunction<long>
+    public struct LambdaClosure(long offset) : IKernelFunction<long>
     {
         /// <summary>
         /// Returns the offset to add to all elements.
         /// </summary>
         public long Offset { get; } = offset;
+        public int executed = 0;
         /// <summary cref="IKernelFunction{T}.ComputeValue(Index1D, int)"/>
-        public long ComputeValue(Index1D index, int value) =>
-            Offset + value * index;
+        public readonly long ComputeValue(Index1D index, int value)
+        {
+            return Offset + executed + value * index;
+        }
     }
 }
