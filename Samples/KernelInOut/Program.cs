@@ -1,58 +1,73 @@
 ﻿global using ILGPU;
 global using ILGPU.Runtime;
 using KernelInOut;
+using System.Collections;
+using System.Runtime.CompilerServices;
 
 using var context = Context.CreateDefault();
-// Fastest device...
 var device = context.Devices.OrderBy(d => d.AcceleratorType switch { AcceleratorType.Cuda => 0, AcceleratorType.OpenCL => 1, AcceleratorType.Velocity => 2, AcceleratorType.CPU => 3, _ => 4 }).First();
-// Create accelerator for the given device
 using var accelerator = device.CreateAccelerator(context);
 Console.WriteLine($"Performing operations on {accelerator}");
 
-var kernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<byte>, ArrayView<byte>, LambdaClosure>(Kernel);
-using var input = accelerator.Allocate1D<byte>(1024);
-using var output = accelerator.Allocate1D<byte>(1024);
-var lambaClosure = new LambdaClosure();
-kernel((int)input.Length, input.View, output.View, lambaClosure);
+var kernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<Sys>, ArrayView<Sys>>(Kernel);
+using var input = accelerator.Allocate1D(Enumerable.Range(0, 1024).Select(i => new Sys { p = (i, i, i) }).ToArray());
+using var output = accelerator.Allocate1D<Sys>(input.Length);
+
+kernel((int)input.Length, input.View, output.View);
 
 var data = output.GetAsArray1D();
 ;
 
-static void Kernel<TKernelFunction>(
+static void Kernel(
     Index1D index,
-    ArrayView<byte> input,
-    ArrayView<byte> output,
-    TKernelFunction function)
-    where TKernelFunction : struct, IKernelFunction
+    ArrayView<Sys> inputPtr,
+    ArrayView<Sys> outputPtr)
 {
-    // Invoke the custom "lambda function"
-    function.Compute(index);
+    var input = new EnumerableArrayView<Sys>(inputPtr);
+    var output = new EnumerableArrayView<Sys>(outputPtr);
+    for (var (i, iLen) = (0, Math.Min(input.Count, output.Count)); i < iLen; ++i)
+        output[i] = input[i];
 }
 
 namespace KernelInOut
 {
-    public interface IKernelFunction
+    public struct Sys
     {
-        void Compute(Index1D index);
+        public (double x, double y, double z) x;
+        public (double x, double y, double z) y;
+        public (double x, double y, double z) z;
+        public (double x, double y, double z) p;
     }
 
-    /// <summary>
-    /// Implements a custom lambda closure
-    /// </summary>
-    /// <remarks>
-    /// Constructs a new lambda closure.
-    /// </remarks>
-    /// <param name="offset">The offset to use.</param>
-    public readonly struct LambdaClosure(long offset) : IKernelFunction
+    public interface IEnumerableArrayView<T> : IEnumerable<T> where T : unmanaged
     {
-        /// <summary>
-        /// Returns the offset to add to all elements.
-        /// </summary>
-        public long Offset { get; } = offset;
-        /// <summary cref="IKernelFunction{T}.ComputeValue(Index1D, int)"/>
-        public readonly void Compute(Index1D index)
+        int Count { get; }
+        ref T this[int index] { get; }
+    }
+
+    public struct EnumerableArrayView<T>(ArrayView<T> view) : IEnumerableArrayView<T> where T : unmanaged
+    {
+        public ref T this[int index]
         {
-            return;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => ref view[index];
+        }
+
+        public int Count
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => view.IntLength;
+        }
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            for (var (i, iLen) = (0, view.IntLength); i < iLen; ++i)
+                yield return view[i];
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
     }
 }
