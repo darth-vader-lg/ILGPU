@@ -25,8 +25,7 @@ static void Kernel(
 {
     var input = new GPUView<Sys>(inputPtr);
     var output = new GPUView<Sys>(outputPtr);
-    for (var (i, iLen) = (0, Math.Min(input.Length, output.Length)); i < iLen; ++i)
-        output[i] = input[i];
+    output[index] = input[index];
 }
 
 namespace KernelInOut
