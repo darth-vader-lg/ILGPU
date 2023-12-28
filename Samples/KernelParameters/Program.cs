@@ -5,20 +5,18 @@ using KernelParameters;
 const int DataSize = 1024;
 
 using var context = Context.CreateDefault();
-// For each available device...
+// Fastest device...
+var device = context.Devices.OrderBy(d => d.AcceleratorType switch { AcceleratorType.Cuda => 0, AcceleratorType.OpenCL => 1, AcceleratorType.Velocity => 2, AcceleratorType.CPU => 3, _ => 4 }).First();
+// Create accelerator for the given device
+using var accelerator = device.CreateAccelerator(context);
+Console.WriteLine($"Performing operations on {accelerator}");
 
-foreach (var device in context)
-{
-    // Create accelerator for the given device
-    using var accelerator = device.CreateAccelerator(context);
-    Console.WriteLine($"Performing operations on {accelerator}");
+var kernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<long>, int, LambdaClosure>(Kernel);
+using var buffer = accelerator.Allocate1D<long>(DataSize);
+var lambaClosure = new LambdaClosure(20);
+kernel((int)buffer.Length, buffer.View, 1, lambaClosure);
 
-    var kernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<long>, int, LambdaClosure>(Kernel);
-    using var buffer = accelerator.Allocate1D<long>(DataSize);
-    kernel((int)buffer.Length, buffer.View, 1, new LambdaClosure(20));
-
-    var data = buffer.GetAsArray1D();
-}
+var data = buffer.GetAsArray1D();
 
 /// <summary>
 /// A generic kernel that uses generic arguments to emulate a lambda-function delegate.
