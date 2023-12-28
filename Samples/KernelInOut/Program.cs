@@ -23,9 +23,9 @@ static void Kernel(
     ArrayView<Sys> inputPtr,
     ArrayView<Sys> outputPtr)
 {
-    var input = new EnumerableArrayView<Sys>(inputPtr);
-    var output = new EnumerableArrayView<Sys>(outputPtr);
-    for (var (i, iLen) = (0, Math.Min(input.Count, output.Count)); i < iLen; ++i)
+    var input = new GPUView<Sys>(inputPtr);
+    var output = new GPUView<Sys>(outputPtr);
+    for (var (i, iLen) = (0, Math.Min(input.Length, output.Length)); i < iLen; ++i)
         output[i] = input[i];
 }
 
@@ -41,33 +41,59 @@ namespace KernelInOut
 
     public interface IEnumerableArrayView<T> : IEnumerable<T> where T : unmanaged
     {
-        int Count { get; }
+        int Length { get; }
         ref T this[int index] { get; }
     }
 
-    public struct EnumerableArrayView<T>(ArrayView<T> view) : IEnumerableArrayView<T> where T : unmanaged
+    public struct GPUView<T>(ArrayView<T> view) : IEnumerableArrayView<T> where T : unmanaged
     {
-        public ref T this[int index]
+        public readonly ref T this[int index]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => ref view[index];
         }
 
-        public int Count
+        public readonly int Length
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => view.IntLength;
         }
 
-        public IEnumerator<T> GetEnumerator()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public readonly IEnumerator<T> GetEnumerator()
         {
             for (var (i, iLen) = (0, view.IntLength); i < iLen; ++i)
                 yield return view[i];
         }
 
-        IEnumerator IEnumerable.GetEnumerator()
+        readonly IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
+        }
+    }
+
+    public struct CPUView<T>(T[] view) : IEnumerableArrayView<T> where T : unmanaged
+    {
+        public readonly ref T this[int index]
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => ref view[index];
+        }
+
+        public readonly int Length
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => view.Length;
+        }
+
+        public readonly IEnumerator<T> GetEnumerator()
+        {
+            return view.AsEnumerable().GetEnumerator();
+        }
+
+        readonly IEnumerator IEnumerable.GetEnumerator()
+        {
+            return view.GetEnumerator();
         }
     }
 }
