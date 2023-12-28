@@ -139,6 +139,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Learning", "Learning", "{D3
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KernelParameters", "KernelParameters\KernelParameters.csproj", "{07ECEC70-9EA9-4988-B389-AC0CA7F34950}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KernelInOut", "KernelInOut\KernelInOut.csproj", "{C8398F5E-06DA-412C-A9E6-E919CC72473E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -389,6 +391,10 @@ Global
 		{07ECEC70-9EA9-4988-B389-AC0CA7F34950}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{07ECEC70-9EA9-4988-B389-AC0CA7F34950}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{07ECEC70-9EA9-4988-B389-AC0CA7F34950}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C8398F5E-06DA-412C-A9E6-E919CC72473E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8398F5E-06DA-412C-A9E6-E919CC72473E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8398F5E-06DA-412C-A9E6-E919CC72473E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8398F5E-06DA-412C-A9E6-E919CC72473E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -459,6 +465,7 @@ Global
 		{1E6D0BC6-CFA1-4F52-9EB9-CAA62DD2F33A} = {C1D99632-ED4A-4B08-A14D-4C8DB375934F}
 		{D39C492B-A26F-4DBC-B894-B68261AF19D6} = {60D61949-4B05-4BAB-9BF7-C8BA2EF905AB}
 		{07ECEC70-9EA9-4988-B389-AC0CA7F34950} = {D39C492B-A26F-4DBC-B894-B68261AF19D6}
+		{C8398F5E-06DA-412C-A9E6-E919CC72473E} = {D39C492B-A26F-4DBC-B894-B68261AF19D6}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {30E502BD-3826-417F-888F-1CE19CF5C6DA}
