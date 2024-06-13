@@ -141,7 +141,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KernelParameters", "KernelP
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KernelInOut", "KernelInOut\KernelInOut.csproj", "{C8398F5E-06DA-412C-A9E6-E919CC72473E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerializedSingleArray", "SerializedSingleArray\SerializedSingleArray.csproj", "{81CD728A-E4A3-4CFA-87E4-17D4762FC01B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SerializedSingleArray", "SerializedSingleArray\SerializedSingleArray.csproj", "{81CD728A-E4A3-4CFA-87E4-17D4762FC01B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StructWithArrayViews", "StructWithArrayViews\StructWithArrayViews.csproj", "{A41E7DF4-0053-43FC-B9E0-F7E6C363F4BD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -401,6 +403,10 @@ Global
 		{81CD728A-E4A3-4CFA-87E4-17D4762FC01B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{81CD728A-E4A3-4CFA-87E4-17D4762FC01B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{81CD728A-E4A3-4CFA-87E4-17D4762FC01B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A41E7DF4-0053-43FC-B9E0-F7E6C363F4BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A41E7DF4-0053-43FC-B9E0-F7E6C363F4BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A41E7DF4-0053-43FC-B9E0-F7E6C363F4BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A41E7DF4-0053-43FC-B9E0-F7E6C363F4BD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -473,6 +479,7 @@ Global
 		{07ECEC70-9EA9-4988-B389-AC0CA7F34950} = {D39C492B-A26F-4DBC-B894-B68261AF19D6}
 		{C8398F5E-06DA-412C-A9E6-E919CC72473E} = {D39C492B-A26F-4DBC-B894-B68261AF19D6}
 		{81CD728A-E4A3-4CFA-87E4-17D4762FC01B} = {D39C492B-A26F-4DBC-B894-B68261AF19D6}
+		{A41E7DF4-0053-43FC-B9E0-F7E6C363F4BD} = {D39C492B-A26F-4DBC-B894-B68261AF19D6}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {30E502BD-3826-417F-888F-1CE19CF5C6DA}
