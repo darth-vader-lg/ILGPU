@@ -2,6 +2,7 @@
 using ILGPU.Runtime;
 using StructWithArrayViews;
 using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 // Create main context
@@ -16,7 +17,7 @@ using var context = Context.Create(builder =>
         forceDebuggingOfOptimizedKernels: true);
 });
 
-var device = context.Devices.OrderBy(d => d.AcceleratorType switch { /*AcceleratorType.Cuda => 0, AcceleratorType.OpenCL => 1, AcceleratorType.Velocity => 2, */AcceleratorType.CPU => 3, _ => 4 }).First();
+var device = context.Devices.OrderBy(d => d.AcceleratorType switch { AcceleratorType.Cuda => 0, AcceleratorType.OpenCL => 1, AcceleratorType.Velocity => 2, AcceleratorType.CPU => 3, _ => 4 }).First();
 using var accelerator = device.CreateAccelerator(context);
 Console.WriteLine($"Performing operations on {accelerator}");
 var kernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, Struct, ArrayView1D<(double center, int length), Stride1D.Dense>>(Struct.Kernel);
@@ -43,6 +44,12 @@ var clusterIndices = accelerator.Allocate1D(clusters.SelectMany(c => c.indices).
 var input = new Struct { clusterCenter = clusterCenter, clusterIndices = clusterIndices, clusterOffset = clusterOffset, firstArray = firstArray, secondArray = secondArray };
 kernel(1, input, complexArray.View);
 accelerator.DefaultStream.Synchronize();
+var timer = new Stopwatch();
+timer.Start();
+kernel(1, input, complexArray.View);
+accelerator.DefaultStream.Synchronize();
+timer.Stop();
+Console.WriteLine($"Time = {timer.Elapsed.TotalMilliseconds} ms");
 return;
 
 namespace StructWithArrayViews
@@ -95,6 +102,7 @@ namespace StructWithArrayViews
         //        get => new() { owner = owner, offset = owner.clusterOffset[index] };
         //    }
         //}
+        private readonly ArrayView1D<int, Stride1D.Dense> GetCluster(int index) => clusterIndices.SubView(clusterOffset[index], clusterOffset[index + 1] - clusterOffset[index]);
         private void Kernel(Index1D index)
         {
             Interop.WriteLine("Index: {0}", index);
@@ -105,6 +113,13 @@ namespace StructWithArrayViews
             Interop.WriteLine("Second array:");
             for (var i = 0; i < secondArray.Length; i++)
                 Interop.Write("{0},", secondArray[i]);
+            //for (var i = 0; i < 100000000; i++)
+            //    GetCluster(1)[2] = GetCluster(1)[2];
+            var c = new StructClustersData() { owner = this }[1];
+            for (var i = 0; i < 100000000; i++)
+            {
+                c[2] = c[2] + 1;
+            }
             var cd = new StructClustersData() { owner = this };
             Interop.WriteLine("Cluster[1][2] = {0}", cd[1][2]);
         }
