@@ -17,142 +17,238 @@ using var context = Context.Create(builder =>
         forceDebuggingOfOptimizedKernels: true);
 });
 
+// Selezione del dispositivo
 var device = context.Devices.OrderBy(d => d.AcceleratorType switch { AcceleratorType.Cuda => 0, AcceleratorType.OpenCL => 1, AcceleratorType.Velocity => 2, AcceleratorType.CPU => 3, _ => 4 }).First();
+// Crea l'acceleratore
 using var accelerator = device.CreateAccelerator(context);
 Console.WriteLine($"Performing operations on {accelerator}");
-var kernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, Struct, ArrayView1D<(double center, int length), Stride1D.Dense>>(Struct.Kernel);
-var firstArray = accelerator.Allocate1D(Enumerable.Range(0, 100).Select(i => i).ToArray());
-var secondArray = accelerator.Allocate1D(Enumerable.Range(0, 100).Select(i => (double)i).ToArray());
-var complexArray = accelerator.Allocate1D(Enumerable.Range(0, 100).Select(i => (center: (double)i, length: i)).ToArray());
+// Crea la funzione di run del kernel
+var kernelRun = accelerator.LoadAutoGroupedStreamKernel((Action<Index1D, StructWithArrayViews.Kernel>)StructWithArrayViews.Kernel.Run);
 var clusters = ((double center, int[] indices)[])[
     (10.0, [1, 2, 4]),
     (20.0, [2, 1, 8, 10]),
     (30.0, []),
     (40.0, [5, 2]),
     ];
-var clusterCenter = accelerator.Allocate1D(clusters.Select(c => c.center).ToArray());
-var offsets = new int[clusters.Length + 1];
-for (var (i, offset) = (0, 0); i <= clusters.Length; i++)
+// Enumeratore di clusters
+IEnumerable<ClusterInfo> ClustersEnumerator()
 {
-    offsets[i] = offset;
-    if (i < clusters.Length)
-        offset += clusters[i].indices.Length;
+    if (clusters.Length == 0)
+        yield break;
+    yield return new()
+    {
+        center = clusters[0].center,
+        offset = 0,
+        length = clusters[0].indices.Length
+    };
+    for (var (i, offset) = (1, clusters[0].indices.Length); i < clusters.Length; offset += clusters[i].indices.Length, i++)
+    {
+        yield return new()
+        {
+            center = clusters[i].center,
+            offset = offset,
+            length = clusters[i].indices.Length
+        };
+    }
 }
-var clusterOffset = accelerator.Allocate1D(offsets);
-var clusterIndices = accelerator.Allocate1D(clusters.SelectMany(c => c.indices).ToArray());
-
-var input = new Struct { clusterCenter = clusterCenter, clusterIndices = clusterIndices, clusterOffset = clusterOffset, firstArray = firstArray, secondArray = secondArray };
-kernel(1, input, complexArray.View);
-accelerator.DefaultStream.Synchronize();
+// Crea la struttura dati del kernel
+var kernel = new StructWithArrayViews.Kernel
+{
+    clusters = accelerator.Allocate1D(ClustersEnumerator().ToArray()),
+    clusterIndices = accelerator.Allocate1D(clusters.SelectMany(c => c.indices).ToArray())
+};
+// Avvia cronometro
 var timer = new Stopwatch();
 timer.Start();
-kernel(1, input, complexArray.View);
+// Avvia il kernel ed attende il termine
+kernelRun(1, kernel);
 accelerator.DefaultStream.Synchronize();
+// Stoppa il timer e visualizza il tempo
 timer.Stop();
 Console.WriteLine($"Time = {timer.Elapsed.TotalMilliseconds} ms");
 return;
 
 namespace StructWithArrayViews
 {
-    public struct StructClustersData
+    /// <summary>
+    /// Elenco di clusters
+    /// </summary>
+    public struct Clusters
     {
-        public Struct owner;
-        public StructCluster this[int index]
+        #region Fields
+        /// <summary>
+        /// Informazioni sui clusters
+        /// </summary>
+        private readonly ArrayView1D<ClusterInfo, Stride1D.Dense> clusters;
+        /// <summary>
+        /// Indici dei vertici nei clusters
+        /// </summary>
+        private ArrayView1D<int, Stride1D.Dense> clusterIndices;
+        #endregion
+        #region Properties
+        /// <summary>
+        /// Lunghezza array di clusters
+        /// </summary>
+        public readonly int Length
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new() { owner = owner, offset = owner.clusterOffset[index] };
+            get => clusters.IntLength;
         }
+        /// <summary>
+        /// Indicizzatore di cluster
+        /// </summary>
+        /// <param name="index">Indice cluster</param>
+        /// <returns>Il cluster</returns>
+        public Cluster this[int index]
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => new(ref clusters[index], ref clusterIndices);
+        }
+        #endregion
+        #region Methods
+        /// <summary>
+        /// Costruttore
+        /// </summary>
+        /// <param name="clusters">Informazioni sui clusters</param>
+        /// <param name="clusterIndices">Indici dei vertici nei clusters</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Clusters(ref ArrayView1D<ClusterInfo, Stride1D.Dense> clusters, ref ArrayView1D<int, Stride1D.Dense> clusterIndices)
+        {
+            this.clusters = clusters;
+            this.clusterIndices = clusterIndices;
+        }
+        #endregion
     }
 
-    public struct StructCluster
+    public struct Cluster
     {
-        public Struct owner;
+        #region Fields
+        /// <summary>
+        /// Informazioni sul cluster
+        /// </summary>
+        private ClusterInfo cluster;
+        /// <summary>
+        /// Indici dei vertici nel cluster
+        /// </summary>
+        private readonly ArrayView1D<int, Stride1D.Dense> indices;
+        #endregion
+        #region Properties
+        /// <summary>
+        /// Centroide del cluster
+        /// </summary>
+        public double Center
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            readonly get => cluster.center;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            set => cluster.center = value;
+        }
+        /// <summary>
+        /// Numero di indici di vertici
+        /// </summary>
+        public readonly int Length
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => cluster.length;
+        }
+        /// <summary>
+        /// Indicizzatore di indice di vertice
+        /// </summary>
+        /// <param name="index">Indice</param>
+        /// <returns>L'indice del vertice</returns>
+        public readonly ref int this[int index]
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => ref indices[index];
+        }
+        #endregion
+        #region Methods
+        /// <summary>
+        /// Costruttore
+        /// </summary>
+        /// <param name="cluster">Informazioni sul cluster</param>
+        /// <param name="clusterIndices">Array globale di indici</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Cluster(ref ClusterInfo cluster, ref ArrayView1D<int, Stride1D.Dense> clusterIndices)
+        {
+            this.cluster = cluster;
+            indices = clusterIndices.SubView(cluster.offset, cluster.length);
+        }
+        #endregion
+    }
+
+    /// <summary>
+    /// Informazioni sul cluster
+    /// </summary>
+    public struct ClusterInfo
+    {
+        #region Fields
+        /// <summary>
+        /// Centroide
+        /// </summary>
+        public double center;
+        /// <summary>
+        /// Lunghezza array di indici
+        /// </summary>
+        public int length;
+        /// <summary>
+        /// Offset di inizio indici vertici nell'array globale di vertici
+        /// </summary>
         public int offset;
-        public ref int this[int index]
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ref owner.clusterIndices[offset + index];
-        }
+        #endregion
     }
 
-    public struct Struct
+    /// <summary>
+    /// Kernel acceleratore
+    /// </summary>
+    public struct Kernel
     {
-        public ArrayView1D<double, Stride1D.Dense> clusterCenter;
-        public ArrayView1D<int, Stride1D.Dense> clusterOffset;
+        #region Fields
+        /// <summary>
+        /// Array di cluster
+        /// </summary>
+        public ArrayView1D<ClusterInfo, Stride1D.Dense> clusters;
+        /// <summary>
+        /// Array di indici di vertici nei clusters
+        /// </summary>
         public ArrayView1D<int, Stride1D.Dense> clusterIndices;
-        public ArrayView1D<int, Stride1D.Dense> firstArray;
-        public ArrayView1D<double, Stride1D.Dense> secondArray;
-        //private ClustersData Clusters => new() { owner = this };
-        //public ref struct ClustersData
-        //{
-        //    public ref Struct owner;
-        //    public ref struct Cluster
-        //    {
-        //        public ref Struct owner;
-        //        public ref int offset;
-        //        public ref int this[int index]
-        //        {
-        //            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        //            get => ref owner.clusterIndices[offset + index];
-        //        }
-        //    }
-        //    public Cluster this[int index]
-        //    {
-        //        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        //        get => new() { owner = owner, offset = owner.clusterOffset[index] };
-        //    }
-        //}
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private readonly ArrayView1D<int, Stride1D.Dense> GetCluster(int index) => clusterIndices.SubView(clusterOffset[index], clusterOffset[index + 1] - clusterOffset[index]);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private readonly ref int GetIndex(int cluster, int index) => ref clusterIndices[clusterOffset[cluster] + index];
-        private readonly unsafe ref int GetIndexWithPtr(int cluster, int index)
+        #endregion
+        #region Properties
+        /// <summary>
+        /// Elenco di clusters
+        /// </summary>
+        public Clusters Clusters
         {
-            fixed (int* pOffset = &clusterOffset[0])
-            fixed (int* pIndex = &clusterIndices[pOffset[cluster]])
-                return ref pIndex[index];
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => new(ref clusters, ref clusterIndices);
         }
-        private unsafe void Kernel(Index1D index)
+        #endregion
+        /// <summary>
+        /// Funzione principale del kernel
+        /// </summary>
+        /// <param name="index">Indice del task</param>
+        private void Run(Index1D index)
         {
-            Interop.WriteLine("Index: {0}", index);
-            Interop.WriteLine("First array:");
-            for (var i = 0; i < firstArray.Length; i++)
-                Interop.Write("{0},", firstArray[i]);
-            Interop.Write("\r\n");
-            Interop.WriteLine("Second array:");
-            for (var i = 0; i < secondArray.Length; i++)
-                Interop.Write("{0},", secondArray[i]);
-
-            fixed (int* pOffset = &clusterOffset[0])
-            fixed (int* pIndices = &clusterIndices[0])
-            {
-                var ix = pOffset[1] + 2;
-                for (var i = 0; i < 100000000; i++)
-                    pIndices[ix] = pIndices[ix] + 1;
-            }
             //for (var i = 0; i < 100000000; i++)
-            //    GetIndexWithPtr(1, 2) = GetIndexWithPtr(1, 2) + 1;
+            //    Clusters[1][2] = Clusters[1][2] + 1;
+            //Interop.WriteLine("Cluster[1][2] = {0}", Clusters[1][2]);
+            var cluster = Clusters[1];
+            for (var i = 0; i < 100000000; i++)
+                cluster[2] = cluster[2] + 1;
+            Interop.WriteLine("Cluster[1][2] = {0}", cluster[2]);
+            //var clusterView = clusterIndices.SubView(clusters[1].offset, clusters[1].len);
             //for (var i = 0; i < 100000000; i++)
-            //    GetIndex(1, 2) = GetIndex(1, 2) + 1;
-            //for (var i = 0; i < 100000000; i++)
-            //    GetCluster(1)[2] = GetCluster(1)[2];
-            //var c = new StructClustersData() { owner = this }[1];
-            //for (var i = 0; i < 100000000; i++)
-            //{
-            //    c[2] = c[2] + 1;
-            //}
-            //Struct test = new Struct();
-            //for (var i = 0; i < 100000000; i++)
-            //{
-            //    test = this;
-            //}
-            var cd = new StructClustersData() { owner = this };
-            Interop.WriteLine("Cluster[1][2] = {0}", cd[1][2]);
+            //    clusterView[2] = clusterView[2] + 1;
+            //Interop.WriteLine("Cluster[1][2] = {0}", clusterView[2]);
         }
-
-        public static void Kernel(Index1D index, Struct input, ArrayView1D<(double center, int length), Stride1D.Dense> complexArray)
+        /// <summary>
+        /// Funzione principale del kernel 
+        /// </summary>
+        /// <param name="index">Indice del task</param>
+        /// <param name="kernel">Dati per il kernel</param>
+        public static void Run(Index1D index, Kernel kernel)
         {
-            input.Kernel(index);
+            kernel.Run(index);
         }
     }
 }
