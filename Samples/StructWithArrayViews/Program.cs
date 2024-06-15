@@ -102,8 +102,17 @@ namespace StructWithArrayViews
         //        get => new() { owner = owner, offset = owner.clusterOffset[index] };
         //    }
         //}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private readonly ArrayView1D<int, Stride1D.Dense> GetCluster(int index) => clusterIndices.SubView(clusterOffset[index], clusterOffset[index + 1] - clusterOffset[index]);
-        private void Kernel(Index1D index)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private readonly ref int GetIndex(int cluster, int index) => ref clusterIndices[clusterOffset[cluster] + index];
+        private readonly unsafe ref int GetIndexWithPtr(int cluster, int index)
+        {
+            fixed (int* pOffset = &clusterOffset[0])
+            fixed (int* pIndex = &clusterIndices[pOffset[cluster]])
+                return ref pIndex[index];
+        }
+        private unsafe void Kernel(Index1D index)
         {
             Interop.WriteLine("Index: {0}", index);
             Interop.WriteLine("First array:");
@@ -113,13 +122,30 @@ namespace StructWithArrayViews
             Interop.WriteLine("Second array:");
             for (var i = 0; i < secondArray.Length; i++)
                 Interop.Write("{0},", secondArray[i]);
+
+            fixed (int* pOffset = &clusterOffset[0])
+            fixed (int* pIndices = &clusterIndices[0])
+            {
+                var ix = pOffset[1] + 2;
+                for (var i = 0; i < 100000000; i++)
+                    pIndices[ix] = pIndices[ix] + 1;
+            }
+            //for (var i = 0; i < 100000000; i++)
+            //    GetIndexWithPtr(1, 2) = GetIndexWithPtr(1, 2) + 1;
+            //for (var i = 0; i < 100000000; i++)
+            //    GetIndex(1, 2) = GetIndex(1, 2) + 1;
             //for (var i = 0; i < 100000000; i++)
             //    GetCluster(1)[2] = GetCluster(1)[2];
-            var c = new StructClustersData() { owner = this }[1];
-            for (var i = 0; i < 100000000; i++)
-            {
-                c[2] = c[2] + 1;
-            }
+            //var c = new StructClustersData() { owner = this }[1];
+            //for (var i = 0; i < 100000000; i++)
+            //{
+            //    c[2] = c[2] + 1;
+            //}
+            //Struct test = new Struct();
+            //for (var i = 0; i < 100000000; i++)
+            //{
+            //    test = this;
+            //}
             var cd = new StructClustersData() { owner = this };
             Interop.WriteLine("Cluster[1][2] = {0}", cd[1][2]);
         }
